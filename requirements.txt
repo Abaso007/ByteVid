@@ -1,6 +1,6 @@
 git+https://github.com/openai/whisper.git
 git+https://github.com/ztjhz/yolov7-slides-extraction.git
-youtube-dl
+yt_dlp
 blingfire
 pysrt
 bert-extractive-summarizer~=0.10.1
