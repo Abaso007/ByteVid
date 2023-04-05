@@ -2,7 +2,7 @@ from typing import Optional
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from concurrent.futures import ThreadPoolExecutor
-import youtube_dl
+import yt_dlp as youtube_dl
 import re
 import os
 import sqlite3
@@ -19,12 +19,12 @@ from lib.summarisation import summarise
 from lib.keyframe_determination import determine_keyframes
 from lib.slides_detection import extract_slides
 
-VIDEO_FOLDER = 'workdir'
-ALLOWED_EXTENSIONS = {'mp4', 'mp3', 'mkv'}
+VIDEO_FOLDER = "workdir"
+ALLOWED_EXTENSIONS = {"mp4", "mp3", "mkv"}
 
-app = Flask(__name__, static_url_path='/static', static_folder='workdir')
+app = Flask(__name__, static_url_path="/static", static_folder="workdir")
 CORS(app)
-app.config['work_dir'] = VIDEO_FOLDER
+app.config["work_dir"] = VIDEO_FOLDER
 
 if not os.path.exists(app.config["work_dir"]):
     os.mkdir(app.config["work_dir"])
@@ -32,8 +32,9 @@ if not os.path.exists(app.config["work_dir"]):
 executor = ThreadPoolExecutor(4)
 
 # initialise database
-conn = sqlite3.connect('database.db')
-conn.executescript("""
+conn = sqlite3.connect("database.db")
+conn.executescript(
+    """
             CREATE TABLE IF NOT EXISTS results (
                 uuid TEXT PRIMARY KEY,
                 transcript TEXT,
@@ -56,20 +57,20 @@ conn.executescript("""
                 image TEXT,
                 FOREIGN KEY (uuid) REFERENCES results
             );
-            """)
+            """
+)
 conn.close()
 
 
 @app.route("/result/<uuid>", methods=["GET"])
 def result(uuid):
-    conn = sqlite3.connect('database.db')
+    conn = sqlite3.connect("database.db")
     cur = conn.cursor()
 
     result = {}
 
     # get transcript, translated, and status
-    res = cur.execute("SELECT * from results WHERE uuid = ?",
-                      (uuid, )).fetchone()
+    res = cur.execute("SELECT * from results WHERE uuid = ?", (uuid,)).fetchone()
 
     if not res:
         return jsonify({"status": -1})
@@ -82,8 +83,7 @@ def result(uuid):
     result["error_message"] = error_message
 
     # get summaries
-    res = cur.execute("SELECT * from summaries WHERE uuid = ?",
-                      (uuid, )).fetchall()
+    res = cur.execute("SELECT * from summaries WHERE uuid = ?", (uuid,)).fetchall()
 
     if len(res) != 0:
         result["summaries"] = []
@@ -93,8 +93,7 @@ def result(uuid):
             result["summaries"][-1]["image"] = row[3]
 
     # get keywords
-    res = cur.execute("SELECT * from keywords WHERE uuid = ?",
-                      (uuid, )).fetchall()
+    res = cur.execute("SELECT * from keywords WHERE uuid = ?", (uuid,)).fetchall()
 
     if len(res) != 0:
         result["keywords"] = []
@@ -122,26 +121,29 @@ def video():
 
         if video_type == "upload":
             if not video_file:
-                return 'No file part', 400
-            elif video_file.filename == '':
-                return 'No selected file', 400
+                return "No file part", 400
+            elif video_file.filename == "":
+                return "No selected file", 400
             elif not allowed_file(video_file.filename):
-                return 'file extension not allowed!', 400
+                return "file extension not allowed!", 400
 
-            save_dir = os.path.join(app.config['work_dir'], curr_uuid)
+            save_dir = os.path.join(app.config["work_dir"], curr_uuid)
             save_path = os.path.join(
-                save_dir, "video." + get_extension(video_file.filename))
+                save_dir, "video." + get_extension(video_file.filename)
+            )
             if not os.path.exists(save_dir):
                 os.mkdir(save_dir)
             video_file.save(save_path)
 
-            executor.submit(begin, curr_uuid, video_type, None, video_language,
-                            translate_language)
+            executor.submit(
+                begin, curr_uuid, video_type, None, video_language, translate_language
+            )
         elif video_type == "youtube":
-            if (not validate_youtube_url(url)):
+            if not validate_youtube_url(url):
                 return "YouTube url invalid", 400
-            executor.submit(begin, curr_uuid, video_type, url, video_language,
-                            translate_language)
+            executor.submit(
+                begin, curr_uuid, video_type, url, video_language, translate_language
+            )
 
         return curr_uuid, 202
     else:
@@ -149,37 +151,39 @@ def video():
 
 
 def allowed_file(filename: str) -> bool:
-    return '.' in filename and get_extension(filename) in ALLOWED_EXTENSIONS
+    return "." in filename and get_extension(filename) in ALLOWED_EXTENSIONS
 
 
 def get_extension(filename: str) -> str:
-    return filename.rsplit('.', 1)[1].lower()
+    return filename.rsplit(".", 1)[1].lower()
 
 
 def validate_youtube_url(url: str) -> bool:
     match = re.match(
         "^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube\.com|youtu.be))(\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(\S+)?$",
-        url)
-    if not match or not match[4]: return False
+        url,
+    )
+    if not match or not match[4]:
+        return False
     return True
 
 
 def download_youtube_video(url: str, uuid: str) -> None:
-    ydl_opts = {
-        'outtmpl': os.path.join(app.config['work_dir'], uuid, 'video.%(ext)s')
-    }
+    ydl_opts = {"outtmpl": os.path.join(app.config["work_dir"], uuid, "video.%(ext)s")}
     with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+        print(url)
         ydl.download([url])
 
 
-def begin(uuid: str, video_type: str, url: Optional[str], language_src: str,
-          language_dst: str) -> None:
+def begin(
+    uuid: str, video_type: str, url: Optional[str], language_src: str, language_dst: str
+) -> None:
     if not language_src:
         language_src = None
     if not language_dst:
         language_dst = None
 
-    conn = sqlite3.connect('database.db')
+    conn = sqlite3.connect("database.db")
     cur = conn.cursor()
 
     cur.execute("INSERT INTO results (uuid, status) VALUES (?, ?)", (uuid, 0))
@@ -187,10 +191,10 @@ def begin(uuid: str, video_type: str, url: Optional[str], language_src: str,
 
     try:
         # download video
-        if video_type == 'youtube':
+        if video_type == "youtube":
             download_youtube_video(url, uuid)
 
-        work_dir = os.path.join(app.config['work_dir'], uuid)
+        work_dir = os.path.join(app.config["work_dir"], uuid)
         if not os.path.exists(work_dir):
             print(f"Folder {uuid} not found!")
             raise OSError(f"Folder {uuid} not found!")
@@ -205,14 +209,13 @@ def begin(uuid: str, video_type: str, url: Optional[str], language_src: str,
         transcribe(work_dir, filename_preprocessed, language=language_src)
         article = transcript_to_article(work_dir)
 
-        with open(glob(os.path.join(work_dir, '*.srt'))[0],
-                  "r",
-                  encoding="utf-8") as f:
+        with open(glob(os.path.join(work_dir, "*.srt"))[0], "r", encoding="utf-8") as f:
             transcript = f.read()
 
         cur.execute(
             "UPDATE results set status = ?, transcript = ? WHERE uuid = ?",
-            (2, transcript, uuid))
+            (2, transcript, uuid),
+        )
         conn.commit()
         print("Transcription done")
 
@@ -221,8 +224,9 @@ def begin(uuid: str, video_type: str, url: Optional[str], language_src: str,
         keyphrases = extract_keyphrase(article)
 
         for keyphrase in keyphrases:
-            cur.execute("INSERT INTO keywords (uuid, keyword) VALUES (?, ?)",
-                        (uuid, keyphrase))
+            cur.execute(
+                "INSERT INTO keywords (uuid, keyword) VALUES (?, ?)", (uuid, keyphrase)
+            )
         cur.execute("UPDATE results set status = ? WHERE uuid = ?", (3, uuid))
         conn.commit()
         print("Keyphrases extracted")
@@ -241,25 +245,30 @@ def begin(uuid: str, video_type: str, url: Optional[str], language_src: str,
         for index, path in enumerate(extracted_paths):
             cur.execute(
                 "INSERT INTO summaries (uuid, text, image) VALUES (?, ?, ?)",
-                (uuid, summaries[index], path))
+                (uuid, summaries[index], path),
+            )
 
         cur.execute("UPDATE results set status = ? WHERE uuid = ?", (5, uuid))
         conn.commit()
         print("Key slides extracted")
 
         if language_dst is None:
-            article_translated = ''
+            article_translated = ""
         else:
             article_translated = translate(article, src=language_src, dst=language_dst)
 
         cur.execute(
             "UPDATE results set status = ?, translated = ? WHERE uuid = ?",
-            (200, article_translated, uuid))
+            (200, article_translated, uuid),
+        )
         conn.commit()
         print("Translation complete")
     except Exception as e:
         print(traceback.format_exc())
-        cur.execute("UPDATE results set status = ?, error_message = ? WHERE uuid = ?", (500, repr(e), uuid))
+        cur.execute(
+            "UPDATE results set status = ?, error_message = ? WHERE uuid = ?",
+            (500, repr(e), uuid),
+        )
         conn.commit()
 
     print("All processing done")
