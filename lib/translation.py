@@ -75,13 +75,12 @@ def translate_chunk(chunk: str, src: str, dst: str) -> list[str]:
             continue
         break
 
-    results = [result['dst'] for result in obj['trans_result']]
-    return results
+    return [result['dst'] for result in obj['trans_result']]
 
 def translate(article: str, src: Optional[str]=None, dst: str='zh-Hans') -> str:
     if not article:
         return ''
-    if src == None:
+    if src is None:
         src = 'auto'
     if dst == src:
         return article

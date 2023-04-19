@@ -66,5 +66,4 @@ def determine_keyframes(work_dir: str, summaries: list[str]) -> list[Optional[st
     )
     subs = transcript_to_article(work_dir)
     keyframe_timestamps = match_summaries_with_timestamps(summaries, subs)
-    keyframe_paths = timestamps_to_images(video_file, work_dir, keyframe_timestamps)
-    return keyframe_paths
+    return timestamps_to_images(video_file, work_dir, keyframe_timestamps)

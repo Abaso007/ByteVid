@@ -67,8 +67,6 @@ def result(uuid):
     conn = sqlite3.connect("database.db")
     cur = conn.cursor()
 
-    result = {}
-
     # get transcript, translated, and status
     res = cur.execute("SELECT * from results WHERE uuid = ?", (uuid,)).fetchone()
 
@@ -77,11 +75,12 @@ def result(uuid):
 
     _, transcript, translated, error_message, status = res
 
-    result["transcript"] = transcript
-    result["translated"] = translated
-    result["status"] = status
-    result["error_message"] = error_message
-
+    result = {
+        "transcript": transcript,
+        "translated": translated,
+        "status": status,
+        "error_message": error_message,
+    }
     # get summaries
     res = cur.execute("SELECT * from summaries WHERE uuid = ?", (uuid,)).fetchall()
 
@@ -105,49 +104,48 @@ def result(uuid):
 
 @app.route("/video", methods=["POST"])
 def video():
-    if request.method == "POST":
-        video_type = request.form.get("type")
-        video_file = request.files.get("file")
-        url = request.form.get("url")
-        video_language = request.form.get("videoLanguage")
-        translate_language = request.form.get("translateLanguage")
-
-        print(video_type, video_language, translate_language)
-
-        if not video_type or video_language is None or translate_language is None:
-            return "Incomplete form!", 400
-
-        curr_uuid = str(uuid4())
-
-        if video_type == "upload":
-            if not video_file:
-                return "No file part", 400
-            elif video_file.filename == "":
-                return "No selected file", 400
-            elif not allowed_file(video_file.filename):
-                return "file extension not allowed!", 400
-
-            save_dir = os.path.join(app.config["work_dir"], curr_uuid)
-            save_path = os.path.join(
-                save_dir, "video." + get_extension(video_file.filename)
-            )
-            if not os.path.exists(save_dir):
-                os.mkdir(save_dir)
-            video_file.save(save_path)
-
-            executor.submit(
-                begin, curr_uuid, video_type, None, video_language, translate_language
-            )
-        elif video_type == "youtube":
-            if not validate_youtube_url(url):
-                return "YouTube url invalid", 400
-            executor.submit(
-                begin, curr_uuid, video_type, url, video_language, translate_language
-            )
-
-        return curr_uuid, 202
-    else:
+    if request.method != "POST":
         return "Only POST request accepted!", 405
+    video_type = request.form.get("type")
+    video_file = request.files.get("file")
+    url = request.form.get("url")
+    video_language = request.form.get("videoLanguage")
+    translate_language = request.form.get("translateLanguage")
+
+    print(video_type, video_language, translate_language)
+
+    if not video_type or video_language is None or translate_language is None:
+        return "Incomplete form!", 400
+
+    curr_uuid = str(uuid4())
+
+    if video_type == "upload":
+        if not video_file:
+            return "No file part", 400
+        elif video_file.filename == "":
+            return "No selected file", 400
+        elif not allowed_file(video_file.filename):
+            return "file extension not allowed!", 400
+
+        save_dir = os.path.join(app.config["work_dir"], curr_uuid)
+        save_path = os.path.join(
+            save_dir, f"video.{get_extension(video_file.filename)}"
+        )
+        if not os.path.exists(save_dir):
+            os.mkdir(save_dir)
+        video_file.save(save_path)
+
+        executor.submit(
+            begin, curr_uuid, video_type, None, video_language, translate_language
+        )
+    elif video_type == "youtube":
+        if not validate_youtube_url(url):
+            return "YouTube url invalid", 400
+        executor.submit(
+            begin, curr_uuid, video_type, url, video_language, translate_language
+        )
+
+    return curr_uuid, 202
 
 
 def allowed_file(filename: str) -> bool:
@@ -163,9 +161,7 @@ def validate_youtube_url(url: str) -> bool:
         "^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube\.com|youtu.be))(\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(\S+)?$",
         url,
     )
-    if not match or not match[4]:
-        return False
-    return True
+    return bool(match and match[4])
 
 
 def download_youtube_video(url: str, uuid: str) -> None:

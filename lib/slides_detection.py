@@ -42,11 +42,11 @@ def detect(img, im0s) -> Optional[list]:
         pred = non_max_suppression(pred, 0.25, 0.45, classes=None, agnostic=False)
 
         # Process detections
-        for i, det in enumerate(pred):  # detections per image
+        for det in pred:
             im0 = im0s
 
-            gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
             if len(det):
+                gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
 
@@ -80,17 +80,14 @@ def cut_img(img, area):
 
     print(cut_x_0, cut_x_1, cut_y_0, cut_y_1)
 
-    img_cut = img[cut_y_0: cut_y_1, cut_x_0: cut_x_1]
-    return img_cut
+    return img[cut_y_0: cut_y_1, cut_x_0: cut_x_1]
 
 def extract_slide(img_in: str, img_out: str) -> bool:
     img_full = np.array(Image.open(img_in))
 
     img, im0s = load_img_for_model(img_in)
     detected_areas = detect(img, im0s)
-    largest_area = select_largest(detected_areas)
-
-    if largest_area:
+    if largest_area := select_largest(detected_areas):
         img_cut = cut_img(img_full, largest_area)
         plt.imsave(img_out, img_cut)
         return True
@@ -106,11 +103,10 @@ def extract_slides(work_dir: str, keyframe_paths: list[Optional[str]]) -> list[O
             img_in = os.path.join(work_dir, keyframe_path)
             filename = f'extracted_{i}.png'
             img_out = os.path.join(work_dir, filename)
-            is_extracted = extract_slide(img_in, img_out)
-            if not is_extracted:
-                res.append(None)
-            else:
+            if is_extracted := extract_slide(img_in, img_out):
                 res.append(filename)
+            else:
+                res.append(None)
     return res
 
 if __name__ == '__main__':
